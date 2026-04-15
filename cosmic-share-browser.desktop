@@ -1,0 +1,12 @@
+[Desktop Entry]
+Name=Network Share Browser
+Comment=Share files and browse network shares via WebDAV
+Exec=cosmic-share-browser
+Icon=network-server
+Type=Application
+NoDisplay=true
+Categories=Network;COSMIC;
+Keywords=COSMIC;Iced;share;webdav;
+X-CosmicApplet=true
+X-CosmicHoverPopup=Auto
+X-OverflowPriority=10

@@ -1,0 +1,25 @@
+[package]
+name = "cosmic-share-browser"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "cosmic_share_browser"
+path = "src/lib.rs"
+
+[[bin]]
+name = "cosmic-share-browser"
+path = "src/main.rs"
+
+[[bin]]
+name = "cosmic-share-daemon"
+path = "src/bin/daemon.rs"
+
+[dependencies]
+cosmic = { git = "https://github.com/pop-os/libcosmic", package = "libcosmic", features = ["applet", "tokio"] }
+tokio = { version = "1", features = ["process", "rt-multi-thread", "macros", "net", "time", "signal", "fs"] }
+dav-server = "0.7"
+hyper = { version = "1", features = ["http1", "server"] }
+hyper-util = { version = "0.1", features = ["tokio"] }
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
