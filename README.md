@@ -49,6 +49,10 @@ This builds both binaries, copies them to `~/.local/bin/`, installs the `.deskto
 
 Settings → Desktop → Panel → click **+** to add an applet → select **Network Share Browser** → drag it to the end (right) section of the panel.
 
+### First run
+
+Click the applet icon. It will show "Service not installed" — click **Install & Start Sharing Service**. This creates the systemd user service, enables and starts the daemon.
+
 ## Usage
 
 Click the panel icon to open the popup.
