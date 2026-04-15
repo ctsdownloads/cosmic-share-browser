@@ -6,11 +6,11 @@ A COSMIC desktop panel applet for sharing files over WebDAV and browsing network
 
 ## What it does
 
-**Share files** — Exposes a directory (default `~/Public`) as a WebDAV server on your local network, advertised via Avahi so other machines can discover it automatically. Defaults to read-only; read-write can be enabled with a toggle.
+**Share files** — Shares a directory (default `~/Public`) as a WebDAV server on your local network, advertised via Avahi for automatic discovery. Read-only by default, read-write toggle available.
 
-**Browse shares** — Discovers WebDAV shares on the LAN via mDNS and lets you mount/unmount them with one click using `gio`.
+**Browse shares** — Discovers WebDAV shares on the LAN via mDNS. Mount and unmount with one click using `gio`.
 
-The applet lives in your COSMIC panel. A background daemon (`cosmic-share-daemon`) handles the actual WebDAV serving as a systemd user service.
+The applet sits in your COSMIC panel. A background daemon (`cosmic-share-daemon`) runs the WebDAV server as a systemd user service.
 
 ## Features
 
@@ -31,7 +31,7 @@ The applet lives in your COSMIC panel. A background daemon (`cosmic-share-daemon
 
 ### Install dependencies
 
-If you're already running COSMIC desktop, most build dependencies are present. You mainly need Avahi, GVFS, Rust, and just.
+If you're already running COSMIC, most build deps are there. You mainly need Avahi, GVFS, Rust, and just.
 
 **Arch / CachyOS:**
 
@@ -40,7 +40,7 @@ sudo pacman -S avahi nss-mdns gvfs rust just
 sudo systemctl enable --now avahi-daemon
 ```
 
-Ensure `/etc/nsswitch.conf` has `mdns_minimal [NOTFOUND=return]` in the `hosts` line for `.local` resolution. See [ArchWiki/Avahi](https://wiki.archlinux.org/title/Avahi) for details.
+Make sure `/etc/nsswitch.conf` has `mdns_minimal [NOTFOUND=return]` in the `hosts` line for `.local` resolution. See [ArchWiki/Avahi](https://wiki.archlinux.org/title/Avahi) for details.
 
 **Fedora:**
 
@@ -49,7 +49,7 @@ sudo dnf install avahi avahi-tools gvfs rust cargo just wayland-devel libxkbcomm
 sudo systemctl enable --now avahi-daemon
 ```
 
-Fedora uses systemd-resolved for `.local` hostname resolution — no `nss-mdns` needed.
+Fedora uses systemd-resolved for `.local` hostname resolution, so `nss-mdns` is not needed.
 
 **Ubuntu / Pop!_OS:**
 
@@ -59,7 +59,7 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 cargo install just
 ```
 
-> **Note:** If the build fails with a missing header error, install the corresponding `-dev` (Ubuntu) or `-devel` (Fedora) package. See the [cosmic-epoch README](https://github.com/pop-os/cosmic-epoch) for the complete build dependency list.
+> **Note:** If the build fails with a missing header error, install the corresponding `-dev` (Ubuntu) or `-devel` (Fedora) package. See the [cosmic-epoch README](https://github.com/pop-os/cosmic-epoch) for the full build dependency list.
 
 ## Install
 
@@ -69,29 +69,27 @@ cd cosmic-share-browser
 just install
 ```
 
-This builds both binaries, copies them to `~/.local/bin/`, installs the `.desktop` file, and reloads systemd.
+Builds both binaries, copies them to `~/.local/bin/`, installs the `.desktop` file, and reloads systemd.
 
 ### Add the applet
 
-Settings → Desktop → Panel → click **+** to add an applet → select **Network Share Browser** → drag it to the end (right) section of the panel.
+Open Settings > Desktop > Panel, click **+** to add an applet, pick **Network Share Browser**, drag it to the right section of the panel.
 
 ### First run
 
-Click the applet icon. It will show "Service not installed" — click **Install & Start Sharing Service**. This creates the systemd user service, enables and starts the daemon.
+Click the applet icon. It shows "Service not installed" — click **Install & Start Sharing Service**. That creates the systemd user service and starts the daemon.
 
 ## Usage
 
 Click the panel icon to open the popup.
 
-**Sharing:** Click "Enable" to start sharing. The daemon binds a random port, writes it to a port file, and advertises via Avahi. Click "Open Port" to open the firewall (one password prompt). Change the shared directory and click "Save & Apply" to restart the daemon with the new path.
+**Sharing:** Hit "Enable" to start sharing. The daemon picks a random port, writes it to a port file, and advertises via Avahi. Hit "Open Port" to open the firewall (one password prompt). Change the shared directory and hit "Save & Apply" to restart with the new path.
 
-**Read-only / Read-write:** The share defaults to read-only. Click "Read-Only" to toggle to read-write — the button turns red to indicate write access is enabled. The daemon restarts automatically. When read-only, PUT, DELETE, MKCOL, MOVE, COPY, PROPPATCH, LOCK, and UNLOCK requests are rejected with 405 Method Not Allowed.
+**Read-only / Read-write:** Defaults to read-only. Click the "Read-Only" button to switch to read-write — it turns red when write access is on. The daemon restarts on its own. In read-only mode, PUT, DELETE, MKCOL, MOVE, COPY, PROPPATCH, LOCK, and UNLOCK get a 405 Method Not Allowed.
 
-**Browsing:** The applet scans for `_webdav._tcp` services on the network automatically. Click "Mount" to mount a share via `gio mount`, or "Unmount" to remove it. Click "Scan" to refresh.
+**Browsing:** The applet scans for `_webdav._tcp` services on the network at startup. Hit "Mount" to mount a share via `gio mount`, "Unmount" to remove it, "Scan" to refresh.
 
 ## How it works
-
-The project has three components:
 
 | Component | Binary | Role |
 |---|---|---|
@@ -99,9 +97,9 @@ The project has three components:
 | Daemon | `cosmic-share-daemon` | WebDAV server + Avahi advertisement |
 | Library | `cosmic_share_browser` | Shared config and firewall logic |
 
-The daemon runs as `~/.config/systemd/user/cosmic-share-daemon.service`. It reads `~/.config/cosmic-share-browser/config.toml` and re-checks every 3 seconds for changes. When sharing is enabled, it binds an ephemeral port, writes the port number to `$XDG_RUNTIME_DIR/cosmic-share-daemon.port`, and starts a WebDAV server using `dav-server` + `hyper`.
+The daemon runs as `~/.config/systemd/user/cosmic-share-daemon.service`. It reads `~/.config/cosmic-share-browser/config.toml` and re-checks every 3 seconds for changes. When sharing is enabled it binds an ephemeral port, writes the port to `$XDG_RUNTIME_DIR/cosmic-share-daemon.port`, and starts the WebDAV server using `dav-server` + `hyper`.
 
-The applet reads the port file to display the current port and manage firewall rules via `pkexec`. On startup it cleans up stale firewall rules from previous sessions and opens the new port in a single password prompt.
+The applet reads the port file for display and firewall management via `pkexec`. On startup it cleans up stale firewall rules from the previous session and opens the new port in one password prompt.
 
 ## Configuration
 
@@ -116,10 +114,10 @@ read_only = true
 
 ## Security
 
-- **No authentication.** Anyone on the LAN can access the shared directory. This is the same model as macOS Public folder sharing or Samba guest access.
+- **No authentication.** Anyone on the LAN can access the shared directory. Same model as macOS Public folder sharing or Samba guest access.
 - **Read-only by default.** Write access requires an explicit toggle.
-- **Write-method blocking** happens at the HTTP layer before the request reaches the WebDAV handler.
-- **Firewall rules** are ephemeral — they auto-clean on reboot. The applet tracks the last opened port and cleans up stale rules on startup.
+- **Write-method blocking** happens at the HTTP layer before the request hits the WebDAV handler.
+- **Firewall rules** are ephemeral — they clean up on reboot. The applet tracks the last opened port and removes stale rules on startup.
 
 ## Uninstall
 
@@ -127,7 +125,7 @@ read_only = true
 just uninstall
 ```
 
-Remove the applet from the panel in Settings → Desktop → Panel.
+Then remove the applet from the panel in Settings > Desktop > Panel.
 
 ## License
 
