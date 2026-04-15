@@ -29,11 +29,37 @@ The applet lives in your COSMIC panel. A background daemon (`cosmic-share-daemon
 - `gio` (GLib/GVFS) — for mounting discovered shares
 - A firewall (optional) — UFW, firewalld, nftables, or iptables
 
-### Build dependencies
+### Install dependencies
 
-- Rust (stable)
-- `just` (command runner)
-- libcosmic development headers (pulled via git dep in Cargo.toml)
+If you're already running COSMIC desktop, most build dependencies are present. You mainly need Avahi, GVFS, Rust, and just.
+
+**Arch / CachyOS:**
+
+```sh
+sudo pacman -S avahi nss-mdns gvfs rust just
+sudo systemctl enable --now avahi-daemon
+```
+
+Ensure `/etc/nsswitch.conf` has `mdns_minimal [NOTFOUND=return]` in the `hosts` line for `.local` resolution. See [ArchWiki/Avahi](https://wiki.archlinux.org/title/Avahi) for details.
+
+**Fedora:**
+
+```sh
+sudo dnf install avahi avahi-tools gvfs rust cargo just wayland-devel libxkbcommon-devel openssl-devel
+sudo systemctl enable --now avahi-daemon
+```
+
+Fedora uses systemd-resolved for `.local` hostname resolution — no `nss-mdns` needed.
+
+**Ubuntu / Pop!_OS:**
+
+```sh
+sudo apt install avahi-daemon avahi-utils gvfs gvfs-backends build-essential pkg-config libwayland-dev libxkbcommon-dev libssl-dev
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+cargo install just
+```
+
+> **Note:** If the build fails with a missing header error, install the corresponding `-dev` (Ubuntu) or `-devel` (Fedora) package. See the [cosmic-epoch README](https://github.com/pop-os/cosmic-epoch) for the complete build dependency list.
 
 ## Install
 
