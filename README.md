@@ -2,7 +2,9 @@
 
 A COSMIC desktop panel applet for sharing files over WebDAV and browsing network shares via Avahi/mDNS.
 
-![screenshot](screenshot.png)
+<p align="center">
+  <img src="screenshot.png" alt="cosmic-share-browser applet">
+</p>
 
 ## What it does
 
