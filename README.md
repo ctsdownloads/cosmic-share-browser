@@ -91,7 +91,7 @@ Click the applet icon. It shows "Service not installed" — click **Install & St
 
 Click the panel icon to open the popup.
 
-**Sharing:** Hit **Enable** to start sharing. The daemon picks a random port, writes it to a port file, and advertises via Avahi. Hit **Open Port** to open the firewall (one password prompt). Change the shared directory and hit **Save & Apply** to restart with the new path.
+**Sharing:** Hit **Enable** to start sharing. The daemon picks a random port, writes it to a port file, and advertises via Avahi. Hit **Open Port** to open the firewall. Change the shared directory and hit **Save & Apply** to restart with the new path.
 
 **Read-only / Read-write:** Defaults to read-only. Click the "Read-Only" button to switch to read-write — it turns red when write access is on. The daemon restarts on its own. In read-only mode, PUT, DELETE, MKCOL, MOVE, COPY, PROPPATCH, LOCK, and UNLOCK get a 405 Method Not Allowed.
 
@@ -107,7 +107,7 @@ Click the panel icon to open the popup.
 
 The daemon runs as `~/.config/systemd/user/cosmic-share-daemon.service`. It reads `~/.config/cosmic-share-browser/config.toml` and re-checks every 3 seconds for changes. When sharing is enabled it binds an ephemeral port, writes the port to `$XDG_RUNTIME_DIR/cosmic-share-daemon.port`, and starts the WebDAV server using `dav-server` + `hyper`.
 
-The applet reads the port file for display and firewall management via `pkexec`. On startup it cleans up stale firewall rules from the previous session and opens the new port in one password prompt.
+The applet reads the port file for display and manages the firewall via `pkexec`. On startup it cleans up stale firewall rules from the previous session and opens the new port. Depending on your firewall backend, this may trigger one or more authentication prompts (firewalld, for example, runs its own polkit checks on top of `pkexec`).
 
 ## Configuration
 
