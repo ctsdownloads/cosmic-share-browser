@@ -1,5 +1,4 @@
 use cosmic_share_browser::config::Config;
-use cosmic_share_browser::firewall;
 use dav_server::{fakels::FakeLs, localfs::LocalFs, DavHandler};
 use std::sync::Arc;
 use tokio::sync::Notify;
@@ -56,19 +55,13 @@ fn remove_port_file() {
 // Server lifecycle
 // ---------------------------------------------------------------------------
 
-/// Stop a running server: signal tasks, close firewall port, remove port file.
+/// Stop a running server: signal tasks, remove port file.
+/// Firewall is NOT touched here — the applet owns all firewall operations
+/// via a single batched pkexec call. Daemon firewall calls would fire
+/// firewalld's polkit actions and cause extra password prompts.
 async fn stop_server(handle: &mut Option<ServerHandle>) {
     if let Some(h) = handle.take() {
         h.stop.notify_waiters();
-
-        // Best-effort firewall cleanup (no pkexec — we're headless)
-        if !firewall::deny_port_direct(h.port).await {
-            eprintln!(
-                "cosmic-share-daemon: could not close firewall port {} \
-                 (GUI can clean up via pkexec)",
-                h.port
-            );
-        }
 
         remove_port_file();
 
@@ -108,14 +101,7 @@ async fn spawn_server(config: &Config) -> Option<ServerHandle> {
     eprintln!("cosmic-share-daemon: serving {} on port {} ({})", dir, port,
         if read_only { "read-only" } else { "read-write" });
 
-    // --- firewall -----------------------------------------------------------
-    if !firewall::allow_port_direct(port).await {
-        eprintln!(
-            "cosmic-share-daemon: could not open firewall port {} without pkexec \
-             (GUI can open it interactively)",
-            port
-        );
-    }
+    // Firewall is owned by the applet, not the daemon. See stop_server().
 
     // --- port file ----------------------------------------------------------
     write_port_file(port);
