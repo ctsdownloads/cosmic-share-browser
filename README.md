@@ -1,159 +1,143 @@
-# cosmic-headphone-manager
+# cosmic-share-browser
 
-A COSMIC desktop panel applet for managing Bluetooth and USB wireless headphones — battery level, codec display, profile switching, and auto-switch control.
+A COSMIC desktop panel applet for sharing files over WebDAV and browsing network shares via Avahi/mDNS.
 
-![Bluetooth and USB headphones connected](screenshots/bluetooth-and-usb-connected.png)
+![cosmic-share-browser applet](screenshot.png)
 
 ## What it does
 
-**Battery display** — Shows battery percentage with a visual bar for Bluetooth headphones (via upower) and USB wireless headsets (via [HeadsetControl](https://github.com/Sapd/HeadsetControl)).
+**Share files** — Shares a directory (default `~/Public`) as a WebDAV server on your local network, advertised via Avahi for automatic discovery. Read-only by default, read-write toggle available.
 
-**Codec display** — Shows the active Bluetooth codec (AAC, SBC, SBC-XQ, LDAC, aptX, etc.) extracted from the active profile.
+**Browse shares** — Discovers WebDAV shares on the LAN via mDNS. Mount and unmount with one click using `gio`.
 
-**Profile switching** — One-click toggle between A2DP (stereo, high-quality) and HFP/HSP (voice, bidirectional for calls). Prefers MSBC over CVSD for voice quality.
-
-**Auto-switch control** — Toggle WirePlumber's automatic profile switching on/off. When enabled, the system switches to voice mode when an app opens a mic stream (Zoom, Discord, Meet) and back to stereo when it closes.
-
-**USB wireless headsets** — Detects SteelSeries, Logitech, Corsair, HyperX, and other USB wireless headsets via [HeadsetControl](https://github.com/Sapd/HeadsetControl). Shows battery level and headset name. The icon only appears when the headset is powered on, not just when the dongle is plugged in.
-
-**Smart icon visibility** — The panel icon appears only when headphones are connected and hides when they're not. Uses `audio-headphones-symbolic` for Bluetooth and `audio-headset-symbolic` for USB wireless.
-
-## Screenshots
-
-| Bluetooth only | USB headset connected | Both connected | Dongle only (headset off) |
-|---|---|---|---|
-| ![BT](screenshots/bluetooth.png) | ![USB](screenshots/headset-connected.png) | ![Both](screenshots/bluetooth-and-usb-connected.png) | ![Dongle](screenshots/headset-disconnected-usb-dongle-only.png) |
+The applet sits in your COSMIC panel. A background daemon (`cosmic-share-daemon`) runs the WebDAV server as a systemd user service.
 
 ## Features
 
-- Battery percentage with visual bar (Bluetooth via upower, USB via HeadsetControl)
-- Active Bluetooth codec display (AAC, SBC, SBC-XQ, LDAC, aptX, etc.)
-- One-click A2DP ↔ HFP/HSP profile toggle (prefers MSBC over CVSD)
-- WirePlumber auto-switch toggle (automatic voice/stereo switching for calls)
-- USB wireless headset support via HeadsetControl (optional)
-- Smart icon — appears on connect, hides on disconnect
-- Different panel icons for Bluetooth vs USB headsets
-- Auto-switch toggle hidden when only USB headsets are connected
-- "No signal" indicator when USB dongle is present but headset is off
-- No background daemon — applet runs inside the COSMIC panel process
-- Full device scan only runs while the popup is open
-- Lightweight background presence check every 10 seconds (icon visibility only)
+- Read-only by default, read-write toggle in the applet
+- Ephemeral port assignment (OS picks a free port each start)
+- Automatic firewall management (UFW, firewalld, nftables, iptables)
+- Stale firewall rule cleanup across reboots (single password prompt)
+- Local share filtering (your own machine is hidden from the browse list)
+- Avahi service advertisement (`_webdav._tcp`)
+- Config hot-reload (daemon polls every 3 seconds)
 
 ## Dependencies
 
-- [COSMIC desktop](https://github.com/pop-os/cosmic-epoch) with panel
-- [PipeWire](https://pipewire.org/) + [WirePlumber](https://pipewire.pages.freedesktop.org/wireplumber/) — audio backend
-- `wpctl` — WirePlumber CLI (comes with WirePlumber)
-- `pactl` — PulseAudio CLI (comes with PipeWire)
-- `upower` — battery level reporting for Bluetooth devices
-- `bluetoothctl` — Bluetooth device enumeration (from `bluez-utils` on Arch, `bluez` on Fedora/Ubuntu — already installed if Bluetooth works)
-- [HeadsetControl](https://github.com/Sapd/HeadsetControl) (optional) — USB wireless headset battery and detection
+- COSMIC desktop with panel
+- **Avahi** — `avahi-daemon`, `avahi-browse`, `avahi-publish-service`
+- **gio** (GLib/GVFS) — for mounting discovered shares
+- A firewall (optional) — UFW, firewalld, nftables, or iptables
 
 ### Install dependencies
 
-If you're already running COSMIC, PipeWire and WirePlumber are there. You mainly need Rust and just.
+If you're already running COSMIC, most build deps are there. You mainly need Avahi, GVFS, Rust, and just.
 
 **Arch / CachyOS:**
 
 ```sh
-sudo pacman -S wireplumber upower rust just
+sudo pacman -S avahi nss-mdns gvfs rust just
+sudo systemctl enable --now avahi-daemon
 ```
 
-For USB wireless headset support:
-
-```sh
-paru -S headsetcontrol
-```
+Make sure `/etc/nsswitch.conf` has `mdns_minimal [NOTFOUND=return]` in the `hosts` line for `.local` resolution. See [ArchWiki/Avahi](https://wiki.archlinux.org/title/Avahi) for details.
 
 **Fedora:**
 
 ```sh
-sudo dnf install wireplumber upower rust cargo just wayland-devel libxkbcommon-devel
+sudo dnf install avahi avahi-tools gvfs rust cargo just wayland-devel libxkbcommon-devel openssl-devel
+sudo systemctl enable --now avahi-daemon
 ```
 
-For USB wireless headset support:
-
-```sh
-sudo dnf install headsetcontrol
-```
+Fedora uses `systemd-resolved` for `.local` hostname resolution, so `nss-mdns` is not needed.
 
 **Ubuntu / Pop!_OS:**
 
 ```sh
-sudo apt install wireplumber pipewire upower build-essential pkg-config libwayland-dev libxkbcommon-dev
+sudo apt install avahi-daemon avahi-utils gvfs gvfs-backends build-essential pkg-config libwayland-dev libxkbcommon-dev libssl-dev
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 cargo install just
 ```
-
-For USB wireless headset support, build [HeadsetControl](https://github.com/Sapd/HeadsetControl) from source (no apt package available).
 
 > **Note:** If the build fails with a missing header error, install the corresponding `-dev` (Ubuntu) or `-devel` (Fedora) package. See the [cosmic-epoch README](https://github.com/pop-os/cosmic-epoch) for the full build dependency list.
 
 ## Install
 
 ```sh
-git clone https://github.com/ctsdownloads/cosmic-headphone-manager.git
-cd cosmic-headphone-manager
+git clone https://github.com/ctsdownloads/cosmic-share-browser.git
+cd cosmic-share-browser
 just install
 ```
 
-Builds the binary, verifies it's non-empty, copies it to `~/.local/bin/`, and installs the `.desktop` file. Log out and back in for the panel to pick up the new applet.
+Builds both binaries, verifies they're non-empty, copies them to `~/.local/bin/`, installs the `.desktop` file, and reloads systemd.
 
 Verify the install succeeded:
 
 ```sh
-file ~/.local/bin/cosmic-headphone-manager
+file ~/.local/bin/cosmic-share-browser ~/.local/bin/cosmic-share-daemon
 ```
 
-Expected: `ELF 64-bit LSB pie executable`. If it shows `empty` or the file is missing, see Troubleshooting below.
+Expected: both show `ELF 64-bit LSB pie executable`. If either shows `empty` or is missing, see Troubleshooting below.
 
 ### Add the applet
 
-Open Settings > Desktop > Panel, click **+** to add an applet, pick **Headphone Manager**, drag it to the right section of the panel.
+Open Settings > Desktop > Panel, click **+** to add an applet, pick **Network Share Browser**, drag it to the right section of the panel.
+
+### First run
+
+Click the applet icon. It shows "Service not installed" — click **Install & Start Sharing Service**. That creates the systemd user service and starts the daemon.
 
 ## Usage
 
-The applet icon appears in your panel when headphones are connected and hides when they're not.
+Click the panel icon to open the popup.
 
-**Click the icon** to open the popup showing all connected headphones.
+**Sharing:** Hit **Enable** to start sharing. The daemon picks a random port, writes it to a port file, and advertises via Avahi. Hit **Open Port** to open the firewall (one password prompt). Change the shared directory and hit **Save & Apply** to restart with the new path.
 
-**Bluetooth headphones** show device name, active codec (AAC, SBC, etc.), battery percentage with a visual bar, and a profile toggle button. Click **Stereo** to switch to voice mode for calls, click **Voice** to switch back to stereo for music.
+**Read-only / Read-write:** Defaults to read-only. Click the "Read-Only" button to switch to read-write — it turns red when write access is on. The daemon restarts on its own. In read-only mode, PUT, DELETE, MKCOL, MOVE, COPY, PROPPATCH, LOCK, and UNLOCK get a 405 Method Not Allowed.
 
-**USB wireless headsets** (SteelSeries, Logitech, Corsair, HyperX) show device name, battery percentage, and connection type. Requires [HeadsetControl](https://github.com/Sapd/HeadsetControl) to be installed. If the headset is powered off but the dongle is plugged in, the popup shows "No signal".
-
-**Auto-Switch** toggles WirePlumber's automatic profile switching. When on, the system switches to HFP/HSP when an app opens a mic stream (video calls) and back to A2DP when the stream closes. This toggle only appears when Bluetooth headphones are connected.
+**Browsing:** The applet scans for `_webdav._tcp` services on the network at startup. Hit **Mount** to mount a share via `gio mount`, **Unmount** to remove it, **Scan** to refresh.
 
 ## How it works
 
-There is no background daemon. The applet runs entirely within the COSMIC panel process.
+| Component | Binary | Role |
+|---|---|---|
+| Applet (GUI) | `cosmic-share-browser` | Panel icon + popup controls |
+| Daemon | `cosmic-share-daemon` | WebDAV server + Avahi advertisement |
+| Library | `cosmic_share_browser` | Shared config and firewall logic |
 
-- **Background presence check** runs every 10 seconds — a lightweight `wpctl status` check to detect if headphones are connected. This controls icon visibility.
-- **Full scan** runs when the popup is opened and every 5 seconds while it's open. This calls `wpctl`, `pactl`, `upower`, `bluetoothctl`, and optionally `headsetcontrol` to gather device state.
-- **Profile switching** uses `pactl set-card-profile` with the card name from `wpctl inspect`.
-- **Auto-switch** uses `wpctl settings --save bluetooth.autoswitch-to-headset-profile`.
+The daemon runs as `~/.config/systemd/user/cosmic-share-daemon.service`. It reads `~/.config/cosmic-share-browser/config.toml` and re-checks every 3 seconds for changes. When sharing is enabled it binds an ephemeral port, writes the port to `$XDG_RUNTIME_DIR/cosmic-share-daemon.port`, and starts the WebDAV server using `dav-server` + `hyper`.
 
-When the popup is closed, only the lightweight presence check runs. Zero CPU impact during normal use.
+The applet reads the port file for display and firewall management via `pkexec`. On startup it cleans up stale firewall rules from the previous session and opens the new port in one password prompt.
 
-### Detection methods
+## Configuration
 
-| Device type | Detection | Battery | Profile switching |
-|---|---|---|---|
-| Bluetooth headphones | `wpctl status` (bluez5 tag) | upower via `bluetoothctl` MAC matching | `pactl set-card-profile` |
-| USB wireless headsets | [HeadsetControl](https://github.com/Sapd/HeadsetControl) JSON API | HeadsetControl | Not applicable |
+`~/.config/cosmic-share-browser/config.toml`:
+
+```toml
+enabled = true
+shared_dir = "/home/user/Public"
+service_name = "COSMIC-Share"
+read_only = true
+```
+
+## Security
+
+- **No authentication.** Anyone on the LAN can access the shared directory. Same model as macOS Public folder sharing or Samba guest access.
+- **Read-only by default.** Write access requires an explicit toggle.
+- Write-method blocking happens at the HTTP layer before the request hits the WebDAV handler.
+- Firewall rules are ephemeral — they clean up on reboot. The applet tracks the last opened port and removes stale rules on startup.
 
 ## Troubleshooting
 
-**Applet icon doesn't appear after install**
+**Daemon fails with `status=203/EXEC` / `Exec format error`**
 
-Log out and back in. COSMIC panel only picks up new applets on session start.
+The installed binary is missing, empty, or wrong architecture. Verify:
 
-**Build fails with a missing header error**
+```sh
+file ~/.local/bin/cosmic-share-daemon
+```
 
-Install the dev packages listed under Dependencies. On Fedora you typically need `wayland-devel` and `libxkbcommon-devel`; on Ubuntu, `libwayland-dev` and `libxkbcommon-dev`.
-
-**`file ~/.local/bin/cosmic-headphone-manager` shows `empty` or 0 bytes**
-
-The build failed silently during a previous install. Clean and rebuild:
+Expected: `ELF 64-bit LSB pie executable`. If it shows `empty` or the file is 0 bytes, the build failed silently during install. Clean and rebuild:
 
 ```sh
 just clean
@@ -162,16 +146,20 @@ just install
 
 Watch for `cargo` errors in the output.
 
-**No Bluetooth devices shown in popup**
+**Build fails with a missing header error**
 
-Verify Bluetooth is working at the system level:
+Install the dev packages listed under Dependencies. On Fedora you typically need `wayland-devel`, `libxkbcommon-devel`, and `openssl-devel`; on Ubuntu, `libwayland-dev`, `libxkbcommon-dev`, and `libssl-dev`.
+
+**Port file missing / applet shows "Port pending"**
+
+The daemon either isn't running or failed to bind. Check:
 
 ```sh
-bluetoothctl devices Connected
-wpctl status | grep bluez
+systemctl --user status cosmic-share-daemon
+ls -la $XDG_RUNTIME_DIR/cosmic-share-daemon.port
 ```
 
-If `bluetoothctl` lists the device but the applet doesn't, check that the device profile is set to `a2dp-sink` or a headset profile via `pactl list cards short`.
+If the service is in `activating (auto-restart)` with exit code 203, see the `Exec format error` section above.
 
 ## Uninstall
 
