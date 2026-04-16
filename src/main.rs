@@ -800,7 +800,19 @@ async fn install_service() -> bool {
     let local_bin = PathBuf::from(&home).join(".local/bin");
     tokio::fs::create_dir_all(&local_bin).await.ok();
     let dest = local_bin.join("cosmic-share-daemon");
-    if tokio::fs::copy(&daemon_bin, &dest).await.is_err() {
+
+    // Guard: copying a file to itself truncates it to 0 bytes. Skip copy if
+    // source and destination resolve to the same path.
+    let src_canon = tokio::fs::canonicalize(&daemon_bin).await.ok();
+    let dst_canon = tokio::fs::canonicalize(&dest).await.ok();
+    let same_file = src_canon.is_some() && src_canon == dst_canon;
+
+    if same_file {
+        eprintln!(
+            "Daemon binary already at {:?}, skipping copy",
+            dest
+        );
+    } else if tokio::fs::copy(&daemon_bin, &dest).await.is_err() {
         eprintln!("Failed to copy daemon binary");
         return false;
     }
