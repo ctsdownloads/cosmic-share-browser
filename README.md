@@ -45,11 +45,123 @@ Make sure `/etc/nsswitch.conf` has `mdns_minimal [NOTFOUND=return]` in the `host
 **Fedora:**
 
 ```sh
-sudo dnf install avahi avahi-tools gvfs rust cargo just wayland-devel libxkbcommon-devel openssl-devel
+sudo dnf install avahi avahi-tools gvfs \
+  gcc gcc-c++ cmake pkgconf-pkg-config just git \
+  rust cargo clang-devel \
+  systemd-devel openssl-devel \
+  wayland-devel libxkbcommon-devel mesa-libEGL-devel \
+  libinput-devel libseat-devel \
+  expat-devel fontconfig-devel freetype-devel
 sudo systemctl enable --now avahi-daemon
 ```
 
 Fedora uses `systemd-resolved` for `.local` hostname resolution, so `nss-mdns` is not needed.
+
+**Fedora Atomic (COSMIC spin) / Origami:**
+
+On immutable Fedora variants, `/usr` is read-only. The daemon's systemd user unit hardcodes `ExecStart=%h/.local/bin/cosmic-share-daemon`, so this applet is user-local only by design — `just install` is aliased to `install-user` and both write to `~/.local`. Build inside a Fedora distrobox. Full tested procedure:
+
+1. Pre-flight host checks — avahi, gio, pkexec, firewalld:
+
+   ```sh
+   systemctl status avahi-daemon | head -3
+   command -v gio
+   command -v pkexec
+   sudo firewall-cmd --state
+   ```
+
+   Expected: avahi-daemon active/enabled, `gio` at `/usr/bin/gio`, `pkexec` at `/usr/bin/pkexec`, firewalld reports `running`. If avahi-daemon is inactive:
+
+   ```sh
+   sudo systemctl enable --now avahi-daemon
+   ```
+
+2. Create and enter a Fedora 43 distrobox (reuse `cosmic-build` if it still exists):
+
+   ```sh
+   distrobox create --name cosmic-build --image registry.fedoraproject.org/fedora-toolbox:43
+   distrobox enter cosmic-build
+   ```
+
+3. Inside the container, install build deps:
+
+   ```sh
+   sudo dnf install -y gcc gcc-c++ cmake pkgconf-pkg-config just git \
+     rust cargo clang-devel \
+     systemd-devel openssl-devel \
+     wayland-devel libxkbcommon-devel mesa-libEGL-devel \
+     libinput-devel libseat-devel \
+     expat-devel fontconfig-devel freetype-devel
+   ```
+
+4. Clone:
+
+   ```sh
+   cd ~
+   git clone https://github.com/ctsdownloads/cosmic-share-browser.git
+   cd cosmic-share-browser
+   ```
+
+5. Build and install user-local:
+
+   ```sh
+   just install-user
+   ```
+
+   The `systemctl --user daemon-reload` at the end is a no-op inside distrobox — expected, we reload on the host in step 8.
+
+6. Verify both binaries landed and `Exec=` is absolute:
+
+   ```sh
+   file ~/.local/bin/cosmic-share-browser ~/.local/bin/cosmic-share-daemon
+   grep ^Exec= ~/.local/share/applications/cosmic-share-browser.desktop
+   ```
+
+   Both `file` outputs should say `ELF 64-bit LSB pie executable`. `grep` should show `Exec=/home/$USER/.local/bin/cosmic-share-browser`.
+
+7. Exit the container:
+
+   ```sh
+   exit
+   ```
+
+8. On the host, reload systemd user manager:
+
+   ```sh
+   systemctl --user daemon-reload
+   ```
+
+9. Restart the COSMIC panel:
+
+   ```sh
+   killall cosmic-panel
+   ```
+
+10. COSMIC: **Settings → Desktop → Panel → Configure Panel Applets → + Add Applet → drag Network Share Browser** in.
+
+11. Click the applet icon in the panel. It'll show "Service not installed" — click **Install & Start Sharing Service**. That writes `~/.config/systemd/user/cosmic-share-daemon.service` and starts the daemon.
+
+12. Verify the daemon is running:
+
+    ```sh
+    systemctl --user status cosmic-share-daemon
+    ls -la $XDG_RUNTIME_DIR/cosmic-share-daemon.port
+    ```
+
+    Service should be `active (running)`, port file should exist.
+
+13. Enable sharing from the applet popup (default share dir is `~/Public`). Click **Open Port** when you want the firewall rule. Expect one or two polkit prompts on firewalld — firewalld runs its own auth checks on top of pkexec. Rules are ephemeral (cleaned up on reboot, re-opened on each sharing enable); no pre-configured permanent firewall rule needed.
+
+14. Verify the port is open while sharing is active:
+
+    ```sh
+    cat $XDG_RUNTIME_DIR/cosmic-share-daemon.port
+    sudo firewall-cmd --list-ports
+    ```
+
+    The number in the port file should match one of the entries in `--list-ports`.
+
+Uninstall later: from the cloned repo on the host, `just uninstall-user`, then remove the applet from the panel in Settings.
 
 **Ubuntu / Pop!_OS:**
 
