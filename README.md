@@ -45,13 +45,7 @@ Make sure `/etc/nsswitch.conf` has `mdns_minimal [NOTFOUND=return]` in the `host
 **Fedora:**
 
 ```sh
-sudo dnf install avahi avahi-tools gvfs \
-  gcc gcc-c++ cmake pkgconf-pkg-config just git \
-  rust cargo clang-devel \
-  systemd-devel openssl-devel \
-  wayland-devel libxkbcommon-devel mesa-libEGL-devel \
-  libinput-devel libseat-devel \
-  expat-devel fontconfig-devel freetype-devel
+sudo dnf install avahi avahi-tools gvfs rust cargo just wayland-devel libxkbcommon-devel openssl-devel
 sudo systemctl enable --now avahi-daemon
 ```
 
@@ -83,15 +77,10 @@ On immutable Fedora variants, `/usr` is read-only. The daemon's systemd user uni
    distrobox enter cosmic-build
    ```
 
-3. Inside the container, install build deps:
+3. Inside the container, install the same build deps as the Fedora section above, plus `git` (a fresh toolbox container doesn't have it):
 
    ```sh
-   sudo dnf install -y gcc gcc-c++ cmake pkgconf-pkg-config just git \
-     rust cargo clang-devel \
-     systemd-devel openssl-devel \
-     wayland-devel libxkbcommon-devel mesa-libEGL-devel \
-     libinput-devel libseat-devel \
-     expat-devel fontconfig-devel freetype-devel
+   sudo dnf install -y avahi-tools gvfs rust cargo just wayland-devel libxkbcommon-devel openssl-devel git
    ```
 
 4. Clone:
